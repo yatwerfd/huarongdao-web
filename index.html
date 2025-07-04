@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>數字華容道</title>
+<style>
+  table { border-collapse: collapse; margin: 20px auto; }
+  td {
+    width: 60px; height: 60px;
+    border: 1px solid #333;
+    text-align: center;
+    vertical-align: middle;
+    font-size: 20px;
+  }
+  .empty { background-color: #eee; }
+  button { margin: 5px; }
+</style>
+</head>
+<body>
+<h2 style="text-align:center;">數字華容道</h2>
+<div style="text-align:center;" id="move-count">Move Count: 0</div>
+<div style="text-align:center;">
+  <table id="board"></table>
+  <div>
+    <button onclick="handleAction('z')">↶</button>
+    <button onclick="handleAction('x')">↺</button>
+    <button onclick="handleAction('c')">↷</button>
+  </div>
+  <button onclick="resetGame()">重新開始</button>
+</div>
+
+<script>
+const initBoard = [
+  [1, 2, 7],
+  [4, 3, 6],
+  [5, 8, 0]
+];
+const target = [
+  [1, 2, 3],
+  [4, 5, 6],
+  [7, 8, 0]
+];
+let board = JSON.parse(JSON.stringify(initBoard));
+let moveCount = 0;
+
+function drawBoard() {
+  const table = document.getElementById("board");
+  table.innerHTML = "";
+  for (let i = 0; i < 3; i++) {
+    const row = table.insertRow();
+    for (let j = 0; j < 3; j++) {
+      const cell = row.insertCell();
+      const val = board[i][j];
+      if (val === 0) {
+        cell.className = "empty";
+        cell.innerText = "";
+      } else {
+        cell.innerText = val;
+      }
+    }
+  }
+  document.getElementById("move-count").innerText = `Move Count: ${moveCount}`;
+  if (JSON.stringify(board) === JSON.stringify(target)) {
+    alert("🎉 恭喜你成功解出數字華容道！");
+  }
+}
+
+function rotateOuter(clockwise=true) {
+  const pos = [[0,0],[0,1],[0,2],[1,2],[2,1],[2,0],[1,0]];
+  let vals = pos.map(([i,j]) => board[i][j]);
+  if (clockwise) {
+    vals.unshift(vals.pop());
+  } else {
+    vals.push(vals.shift());
+  }
+  pos.forEach(([i,j], idx) => board[i][j] = vals[idx]);
+  board[2][2] = 0;
+}
+
+function rotateCornerRight() {
+  const pos = [[1,2],[1,1],[2,1]];
+  let vals = pos.map(([i,j]) => board[i][j]);
+  vals.unshift(vals.pop());
+  pos.forEach(([i,j], idx) => board[i][j] = vals[idx]);
+  board[2][2] = 0;
+}
+
+function handleAction(action) {
+  if (JSON.stringify(board) === JSON.stringify(target)) return;
+  if (action === 'z') rotateOuter(false);
+  if (action === 'c') rotateOuter(true);
+  if (action === 'x') rotateCornerRight();
+  moveCount++;
+  drawBoard();
+}
+
+function resetGame() {
+  board = JSON.parse(JSON.stringify(initBoard));
+  moveCount = 0;
+  drawBoard();
+}
+
+drawBoard();
+</script>
+</body>
+</html>
