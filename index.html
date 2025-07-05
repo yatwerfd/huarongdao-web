@@ -2,6 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>數字華容道</title>
 <style>
   body {
@@ -12,8 +13,11 @@
     display: inline-block;
     margin-top: 5px;
     transform-origin: top center;
+    max-width: 100%;
   }
   table {
+    width: 100%;
+    max-width: 300px; 
     border-collapse: collapse;
     margin: 20px auto;
   }
@@ -48,6 +52,22 @@
   #size-menu {
     margin-top: 10px;
   }
+.arrow {
+  display: inline-block;
+}
+.rotate-0 { transform: rotate(0deg); }
+.rotate-90 { transform: rotate(90deg); }
+.rotate-180 { transform: rotate(180deg); }
+.rotate-270 { transform: rotate(270deg); }
+
+@media (max-width: 600px) {
+  .button-group button {
+    font-size: 16px;
+    padding: 8px 12px;
+    margin: 0 5px;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -56,7 +76,9 @@
   <div class="container" id="container">
     <h2>數字華容道</h2>
     <button onclick="showGoal()">遊戲目標</button>
+    <button onclick="showKeyExplanation()">按鍵說明</button>
     <button onclick="toggleBoardSizeMenu()">棋盤大小</button>
+    <button onclick="toggleAnimation()" id="animation-btn">關閉動畫</button>
     <div id="size-menu" class="hidden">
       <button onclick="setBoardSize(3)">3x3</button>
       <button onclick="setBoardSize(4)">4x4</button>
@@ -75,7 +97,8 @@
     </div>
     <div class="id-display">
       棋盤 ID: <span id="board-id"></span>
-      <input type="text" id="input-id" maxlength="25" size="12" />
+    </div>
+      <input type="text" id="input-id" maxlength="25" size="25" placeholder="輸入ID來搜尋特定初始狀態"/>
       <button onclick="loadFromInput()">載入</button>
     </div>
   </div>
@@ -90,7 +113,23 @@
   </div>
 </div>
 
+<div id="key-page" class="hidden">
+  <div class="container">
+    <h2>按鍵說明</h2>
+    <p>
+  	↺符號會把右下角三個方塊做逆時針旋轉，<br>
+  	而↶則會把方塊依照下方箭頭進行旋轉，<br>
+	↷則是依據下方箭頭的反方向進行旋轉。
+    </p>
+
+    <table id="arrow-board"></table>
+    <button onclick="backToGame()">返回遊戲</button>
+  </div>
+</div>
+
 <script>
+let animationEnabled = true;
+let isAnimating = false;
 let boardSize = 3;
 let board = [];
 let initBoard = [];
@@ -102,11 +141,21 @@ const scale3x3 = 1.25;
 const scale4x4 = 1.1;
 const scale5x5 = 1.0;
 
+function toggleAnimation() {
+  animationEnabled = !animationEnabled;
+  const btn = document.getElementById("animation-btn");
+  btn.innerText = animationEnabled ? "關閉動畫" : "開啟動畫";
+}
+
 function setContainerScale() {
   const container = document.getElementById("container");
-  if (boardSize === 3) container.style.transform = `scale(${scale3x3})`;
-  if (boardSize === 4) container.style.transform = `scale(${scale4x4})`;
-  if (boardSize === 5) container.style.transform = `scale(${scale5x5})`;
+  if (window.innerWidth < 600) {
+      container.style.transform = '';
+  } else {
+      if (boardSize === 3) container.style.transform = `scale(${scale3x3})`;
+      if (boardSize === 4) container.style.transform = `scale(${scale4x4})`;
+      if (boardSize === 5) container.style.transform = `scale(${scale5x5})`;
+    }
 }
 
 function toggleBoardSizeMenu() {
@@ -122,9 +171,9 @@ function setBoardSize(n) {
 function generateNew() {
   const id = generateEvenPermutationID();
   setBoardFromId(id);
+  setTarget();
   moveCount = 0;
   drawBoard();
-  setTarget();
   setContainerScale();
 }
 
@@ -143,16 +192,26 @@ function setTarget() {
 function drawBoard() {
   const table = document.getElementById("board");
   table.innerHTML = "";
+
+  const arrowMatrix = getArrowMatrix();
+
   for (let i = 0; i < boardSize; i++) {
     const row = table.insertRow();
     for (let j = 0; j < boardSize; j++) {
       const val = board[i][j];
+      const arrow = arrowMatrix[i][j] || "";
+
       const cell = row.insertCell();
+
+      cell.innerHTML = `
+  	<div style="position: relative; width: 100%; height: 100%;">
+    		<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 20px;">${val === 0 ? "" : val}</div>
+    		<div style="position: absolute; bottom: 2px; right: 2px; font-size: 12px; color: #666;">${arrow}</div>
+  	</div>`;
+
+
       if (val === 0) {
         cell.className = "empty";
-        cell.innerText = "";
-      } else {
-        cell.innerText = val; // 永遠顯示正常數字
       }
     }
   }
@@ -189,13 +248,125 @@ function rotateCornerRight() {
   board[n-1][n-1] = 0;
 }
 
+function animateRotateOuter(clockwise = true) {
+  let pos = [];
+  if (boardSize === 3) {
+    pos = [[0,0],[0,1],[0,2],[1,2],[2,2],[2,1],[2,0],[1,0]];
+  } else if (boardSize === 4) {
+    pos = [[0,0],[0,1],[0,2],[0,3],[1,3],[2,3],[3,3],[3,2],[2,2],[1,2],[1,1],[2,1],[3,1],[3,0],[2,0],[1,0]];
+  } else if (boardSize === 5) {
+    pos = [[0,0],[0,1],[0,2],[0,3],[0,4],[1,4],[1,3],[1,2],[1,1],[2,1],[3,1],[3,2],[2,2],[2,3],[2,4],[3,4],[4,4],[4,3],[4,2],[4,1],[4,0],[3,0],[2,0],[1,0]];
+  }
+
+  // 找出目前空格位置在路徑上的 index
+  let emptyIdx = pos.findIndex(([i,j]) => board[i][j] === 0);
+
+  if (emptyIdx === -1) {
+    alert("空格不在旋轉路徑上！");
+    isAnimating = false;
+    return;
+  }
+
+  isAnimating = true;
+
+  let steps = pos.length ; // 繞完一圈
+
+  let step = 0;
+
+  function animateStep() {
+    if (step >= steps) {
+      moveCount++;
+      drawBoard();
+      isAnimating = false;
+      return;
+    }
+
+    // 計算下一格位置
+    let nextIdx = clockwise
+      ? (emptyIdx - 1 + pos.length) % pos.length
+      : (emptyIdx + 1) % pos.length;
+
+    const [ei, ej] = pos[emptyIdx];
+    const [ni, nj] = pos[nextIdx];
+
+    // 跟下一個交換
+    board[ei][ej] = board[ni][nj];
+    board[ni][nj] = 0;
+
+    emptyIdx = nextIdx;
+
+    drawBoard();
+
+    step++;
+    setTimeout(animateStep, 200);
+  }
+
+  animateStep();
+}
+
+
+
+function animateRotateCornerRight() {
+  const n = boardSize;
+  const pos = [[n-2,n-1],[n-2,n-2],[n-1,n-2],[n-1,n-1],[n-2,n-1]]; // 包含空格
+
+  let emptyIdx = pos.findIndex(([i,j]) => board[i][j] === 0);
+
+  if (emptyIdx === -1) {
+    alert("空格不在右下角三格！");
+    isAnimating = false;
+    return;
+  }
+
+  isAnimating = true;
+
+  let steps = pos.length-1; // 
+
+  let step = 0;
+
+  function animateStep() {
+    if (step >= steps) {
+      moveCount++;
+      drawBoard();
+      isAnimating = false;
+      return;
+    }
+
+    let nextIdx = (emptyIdx - 1 + 4) % 4; // 逆時針
+
+    const [ei, ej] = pos[emptyIdx];
+    const [ni, nj] = pos[nextIdx];
+
+    board[ei][ej] = board[ni][nj];
+    board[ni][nj] = 0;
+
+    emptyIdx = nextIdx;
+
+    drawBoard();
+
+    step++;
+    setTimeout(animateStep, 200);
+  }
+
+  animateStep();
+}
+
+
 function handleAction(action) {
+  if (isAnimating) return;  // 動畫進行中無效
   if (JSON.stringify(board) === JSON.stringify(target)) return;
-  if (action === 'z') rotateOuter(false);
-  if (action === 'c') rotateOuter(true);
-  if (action === 'x') rotateCornerRight();
-  moveCount++;
-  drawBoard();
+
+  if (animationEnabled) {
+    if (action === 'z') animateRotateOuter(false);
+    if (action === 'c') animateRotateOuter(true);
+    if (action === 'x') animateRotateCornerRight();
+  } else {
+    if (action === 'z') rotateOuter(false);
+    if (action === 'c') rotateOuter(true);
+    if (action === 'x') rotateCornerRight();
+    moveCount++;
+    drawBoard();
+  }
 }
 
 function resetGame() {
@@ -269,26 +440,113 @@ function loadFromInput() {
 function showGoal() {
   document.getElementById("game-page").classList.add("hidden");
   document.getElementById("goal-page").classList.remove("hidden");
+
   const table = document.getElementById("goal-board");
   table.innerHTML = "";
-  for (let i=0;i<boardSize;i++) {
-    const row=table.insertRow();
-    for (let j=0;j<boardSize;j++) {
+
+  const arrowMatrix = getArrowMatrix();
+
+  for (let i = 0; i < boardSize; i++) {
+    const row = table.insertRow();
+    for (let j = 0; j < boardSize; j++) {
       const val = target[i][j];
+      const arrow = arrowMatrix[i][j] || "";
+
       const cell = row.insertCell();
-      if (val===0) {
-        cell.className="empty"; cell.innerText="";
-      } else {
-        cell.innerText = val;
+
+      cell.innerHTML = `
+        <div style="position: relative; width: 100%; height: 100%;">
+          <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 20px;">${val === 0 ? "" : val}</div>
+          <div style="position: absolute; bottom: 2px; right: 2px; font-size: 12px; color: #666;">${arrow}</div>
+        </div>`;
+
+      if (val === 0) {
+        cell.className = "empty";
       }
     }
   }
 }
 
+function showKeyExplanation() {
+  document.getElementById("game-page").classList.add("hidden");
+  document.getElementById("goal-page").classList.add("hidden");
+  document.getElementById("key-page").classList.remove("hidden");
+
+  const arrowTable = document.getElementById("arrow-board");
+  arrowTable.innerHTML = "";
+
+  let arrows = [];
+
+  if (boardSize === 3) {
+    arrows = [
+      [`<span class="arrow rotate-90">⤷</span>`, "←", `<span class="arrow rotate-180">⤷</span>`],
+      ["↓", "", "↑"],
+      ["⤷", "→", `<span class="arrow rotate-270">⤷</span>`]
+    ];
+  } else if (boardSize === 4) {
+    arrows = [
+      [`<span class="arrow rotate-90">⤷</span>`, "←", "←", `<span class="arrow rotate-180">⤷</span>`],
+      ["↓", `<span class="arrow rotate-180">⤶</span>`, `<span class="arrow rotate-270">⤶</span>`, "↑"],
+      ["↓", "↑", "↓", "↑"],
+      ["⤷", `<span class="arrow rotate-270">⤷</span>`, "⤷", `<span class="arrow rotate-270">⤷</span>`]
+    ];
+  } else if (boardSize === 5) {
+    arrows = [
+      [`<span class="arrow rotate-90">⤷</span>`, "←", "←", "←", `<span class="arrow rotate-180">⤷</span>`],
+      ["↓", `<span class="arrow rotate-180">⤶</span>`, "→", "→", `<span class="arrow rotate-270">⤷</span>`],
+      ["↓", "↑", `<span class="arrow rotate-90">⤷</span>`, "←", `<span class="arrow rotate-180">⤷</span>`],
+      ["↓", `<span class="arrow rotate-90">⤶</span>`, "⤶", "", "↑"],
+      ["⤷", "→", "→", "→", `<span class="arrow rotate-270">⤷</span>`]
+    ];
+  }
+
+  for (let i = 0; i < arrows.length; i++) {
+    const row = arrowTable.insertRow();
+    for (let j = 0; j < arrows[i].length; j++) {
+      const cell = row.insertCell();
+      cell.innerHTML = arrows[i][j];
+      cell.style.width = "40px";
+      cell.style.height = "40px";
+      cell.style.textAlign = "center";
+      cell.style.verticalAlign = "middle";
+      cell.style.border = "1px solid #333";
+      cell.style.fontSize = "20px";
+    }
+  }
+}
+
+
 function backToGame() {
   document.getElementById("goal-page").classList.add("hidden");
+  document.getElementById("key-page").classList.add("hidden");
   document.getElementById("game-page").classList.remove("hidden");
 }
+
+function getArrowMatrix() {
+  if (boardSize === 3) {
+    return [
+      [`<span class="arrow rotate-90">⤷</span>`, "←", `<span class="arrow rotate-180">⤷</span>`],
+      ["↓", "", "↑"],
+      ["⤷", "→", `<span class="arrow rotate-270">⤷</span>`]
+    ];
+  } else if (boardSize === 4) {
+    return [
+      	[`<span class="arrow rotate-90">⤷</span>`, "←", "←", `<span class="arrow rotate-180">⤷</span>`],
+      	["↓", `<span class="arrow rotate-180">⤶</span>`, `<span class="arrow rotate-270">⤶</span>`, "↑"],
+      	["↓", "↑", "↓", "↑"],
+      	["⤷", `<span class="arrow rotate-270">⤷</span>`, "⤷", `<span class="arrow rotate-270">⤷</span>`]
+    ];
+  } else if (boardSize === 5) {
+    return [
+      	[`<span class="arrow rotate-90">⤷</span>`, "←", "←", "←", `<span class="arrow rotate-180">⤷</span>`],
+      	["↓", `<span class="arrow rotate-180">⤶</span>`, "→", "→", `<span class="arrow rotate-270">⤷</span>`],
+      	["↓", "↑", `<span class="arrow rotate-90">⤷</span>`, "←", `<span class="arrow rotate-180">⤷</span>`],
+      	["↓", `<span class="arrow rotate-90">⤶</span>`, "⤶", "", "↑"],
+      	["⤷", "→", "→", "→", `<span class="arrow rotate-270">⤷</span>`]
+    ];
+  }
+}
+
 
 generateNew();
 </script>
